@@ -1,9 +1,12 @@
 package ru.product.service.emailnotificationservice.config;
 
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +14,11 @@ import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
@@ -20,14 +28,15 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 @Configuration
 public class KafkaConfig {
 
-    // В продюсере мы получали свойства через @Value и сеттили их по одному, здесь мы сделаем через
-    // Environment bean. Это бин, который предоставляет нам Spring и в нем уже есть все проперти
-    // заинжекчены из консумера
+    // В продюсере мы получали свойства через @Value и сеттили их по одному, здесь мы сделаем
+    // через Environment bean. Это бин, который предоставляет нам Spring и в нем уже есть
+    // все проперти заинжекчены из консумера
     @Autowired
     Environment environment;
 
     /**
-     * Метод возвращающий ConsumerFactory, которая будет использоваться при создании листенеров
+     * Метод возвращающий ConsumerFactory, которая будет использоваться при создании
+     * листенеров
      */
     @Bean
     ConsumerFactory<String, Object> consumerFactory() {
@@ -56,12 +65,47 @@ public class KafkaConfig {
      */
     @Bean
     ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-             ConsumerFactory<String, Object> consumerFactory) {
+             ConsumerFactory<String, Object> consumerFactory,
+                                     KafkaTemplate<String, Object> kafkaTemplate) {
+
+        // Кофигарация ErrorHandler для проблемных сообщений. В конструктор нужно
+        // передать кто будет слать в новый топик (в Spring KafkaTemplate отправляет,
+        // будем инжектить KafkaTemplate при создании этого бина)
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
+            new DeadLetterPublishingRecoverer(kafkaTemplate));
+        // Стратегия DeadLetterPublishingRecoverer будет создавать новый топик и отправлять
+        // туда проблемные сообщения, для того чтобы отсылать ему нужен KafkaTemplate
+
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
+        factory.setConsumerFactory(consumerFactory);
 
+        // Указываем поведение консумера, когда он встречается с сообщениями,
+        // которые не может прочитать
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 
+    /**
+     * Метод, который будет возвращать KafkaTemplate, для корректной работы Spring.
+     * Ожидает фабрику, сконфигурурованную с помощью проперти
+     */
+    @Bean
+    KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactoryy) {
+        return new KafkaTemplate<>(producerFactoryy);
+    }
+
+    /**
+     * Конфигурация ProducerFactory для передачи ее в KafkaTemplate
+     */
+    @Bean
+    ProducerFactory<String, Object> producerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+            environment.getProperty("spring.kafka.consumer.bootstrap-servers"));
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+
+        return new DefaultKafkaProducerFactory<>(config);
+    }
 }
