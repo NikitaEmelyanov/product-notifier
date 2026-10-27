@@ -10,7 +10,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 import productservice.dto.CreateProductDto;
 import productservice.service.ProductService;
-import productservice.service.event.ProductCreatedEvent;
+import ru.product.service.core.event.ProductCreatedEvent;
 
 /**
  * Имлементация интерфейса ProductService, содержит методы взаимодействия продукта через кафку

@@ -1,4 +1,4 @@
-package productservice.service.event;
+package ru.product.service.core.event;
 
 import java.math.BigDecimal;
 
