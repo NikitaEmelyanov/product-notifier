@@ -6,9 +6,10 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="email-notification-service" />
         <module name="product-service" />
         <module name="core" />
+        <module name="email-notification-service" />
+        <module name="mock-service" />
       </profile>
     </annotationProcessing>
   </component>
@@ -16,6 +17,7 @@
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="core" options="-parameters" />
       <module name="email-notification-service" options="-parameters" />
+      <module name="mock-service" options="-parameters" />
       <module name="product-service" options="-parameters" />
     </option>
   </component>

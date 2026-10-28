@@ -21,6 +21,9 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.FixedBackOff;
+import ru.product.service.emailnotificationservice.exception.NonRetryableException;
+import ru.product.service.emailnotificationservice.exception.RetryableException;
 
 /**
  * Конфиг для настройки Kafka-Consumer (email-notification-service)
@@ -69,12 +72,18 @@ public class KafkaConfig {
                                      KafkaTemplate<String, Object> kafkaTemplate) {
 
         // Кофигарация ErrorHandler для проблемных сообщений. В конструктор нужно
-        // передать кто будет слать в новый топик (в Spring KafkaTemplate отправляет,
-        // будем инжектить KafkaTemplate при создании этого бина)
+        // передать кто будет слать в новый топик (в Spring KafkaTemplate отправляет),
+        // будем инжектить KafkaTemplate при создании этого бина. Так же можно добавить параметр
+        // FixedBackOff с параметрами интервала (периодичность отправки) и количеством попыток)
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
-            new DeadLetterPublishingRecoverer(kafkaTemplate));
+            new DeadLetterPublishingRecoverer(kafkaTemplate), new FixedBackOff(3000, 3));
         // Стратегия DeadLetterPublishingRecoverer будет создавать новый топик и отправлять
         // туда проблемные сообщения, для того чтобы отсылать ему нужен KafkaTemplate
+        // Добавляем в errorHandler наше NonRetryableException исключение сюда можно через
+        // запятую указывать несколько исключений, например HttpServerErrorException
+        errorHandler.addNotRetryableExceptions(NonRetryableException.class);
+        //Так же добавили Retryable исключение
+        errorHandler.addRetryableExceptions(RetryableException.class);
 
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
