@@ -1,8 +1,10 @@
 package productservice.service.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -88,8 +90,21 @@ public class ProductServiceImpl implements ProductService {
             createProductDto.getPrice(),
             createProductDto.getQuantity());
 
+        // Мы можем самотоятельно создать ProducerRecord, установить в него header
+        // и отправить методом send
+        // Передаем уникальный MessageId в хидере
+        ProducerRecord<String, ProductCreatedEvent> record = new ProducerRecord<>(
+            "product-created-events-topic", productId, productCreatedEvent);
+
+        // Добавляем header, тут же мы будем генерить уникальный MessageId
+        // Для теста можно заменить UUID.randomUUID().toString() на константу "qwerty"
+        // и проверить что бизнес логика не повторяется
+        record.headers().add("messageId", UUID.randomUUID().toString().getBytes());
+
+        // Теперь в методе send мы можем передать наш настроенный record, чтобы появилась
+        // возможность отправлять уникальный messageId
         SendResult<String, ProductCreatedEvent> result = kafkaTemplate
-            .send("product-created-events-topic", productId, productCreatedEvent).get();
+            .send(record).get();
 
         //Если бы работа была асинхронна, тут были бы пустые значения, так как мы бы
         // не получили информацию
